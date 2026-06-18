@@ -1,0 +1,32 @@
+version: "3.9"
+
+services:
+  postgres:
+    ports:
+      - "5432:5432"
+
+  backend:
+    ports:
+      - "8000:8000"
+    develop:
+      watch:
+        - path: ./backend/app
+          action: sync
+          target: /app/app
+
+  frontend:
+    build:
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./frontend/src:/app/src
+
+  voice-service:
+    ports:
+      - "8001:8001"
+    develop:
+      watch:
+        - path: ./voice_service/app
+          action: sync
+          target: /app/app

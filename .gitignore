@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+*.egg
+
+# Node
+node_modules/
+.next/
+out/
+
+# Environment
+.env
+.env.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker
+.docker/
+
+# Coverage
+htmlcov/
+.coverage
+.coverage.*
+coverage/
+
+# Migrations - keep versions, ignore cache
+backend/alembic/versions/*.pyc
+
+# Logs
+*.log
+logs/
+
+# Uploads
+uploads/
+recordings/

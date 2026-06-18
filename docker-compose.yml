@@ -1,0 +1,76 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: harmony-postgres
+    environment:
+      POSTGRES_DB: harmony_health
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: harmony-backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: "postgresql+asyncpg://postgres:postgres@postgres:5432/harmony_health"
+    ports:
+      - "8000:8000"
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: harmony-frontend
+    depends_on:
+      - backend
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
+
+  voice-service:
+    build:
+      context: ./voice_service
+      dockerfile: Dockerfile
+    container_name: harmony-voice
+    depends_on:
+      - backend
+    env_file:
+      - .env
+    ports:
+      - "8001:8001"
+    volumes:
+      - ./receptionist-voice-poc:/app/receptionist-voice-poc
+    restart: unless-stopped
+
+  livekit-server:
+    image: livekit/livekit-server:latest
+    container_name: harmony-livekit
+    command: --config /etc/livekit/config.yaml
+    ports:
+      - "7880:7880"   # Web UI / API
+      - "7881:7881"   # WebRTC
+      - "7882:7882/udp"  # WebRTC UDP
+    volumes:
+      - ./docker/livekit-config.yaml:/etc/livekit/config.yaml
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
