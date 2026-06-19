@@ -94,6 +94,22 @@ class AIClient:
 
         raise last_error or ServiceUnavailableException("AI service unavailable")
 
+    async def send_message_safe(
+        self,
+        message: str,
+        conversation_history: list[dict[str, str]],
+    ) -> str:
+        """Send a message with fallback when AI service is down."""
+        try:
+            return await self.send_message(message, conversation_history)
+        except ServiceUnavailableException:
+            return (
+                "I'm sorry, the AI assistant is currently unavailable. "
+                "Please try again later or contact the front desk for assistance.\n\n"
+                "You can still use the system to manage patients and appointments "
+                "from the Patients and Appointments tabs."
+            )
+
     def _extract_response(self, data: dict[str, Any]) -> str:
         """Extract response text from AI service response."""
         if "response" in data:

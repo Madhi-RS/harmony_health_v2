@@ -15,7 +15,6 @@ export default function ChatPage() {
   const { isLoading } = useConversations();
   const createMutation = useCreateConversation();
 
-  // Auto-select first conversation if none active
   useEffect(() => {
     if (!activeConversationId && conversations.length > 0) {
       useChatStore.getState().setActiveConversation(conversations[0].id);
@@ -27,18 +26,18 @@ export default function ChatPage() {
   };
 
   return (
-    <div className="flex h-[calc(100vh-3.5rem)] -m-4 md:-m-6 lg:-m-8">
-      {/* Sidebar — hidden on mobile when conversation active */}
-      <div className="hidden md:flex md:w-72 lg:w-80 shrink-0">
+    <div className="flex flex-1 min-h-0">
+      {/* Sidebar — hidden on mobile */}
+      <div className="hidden md:flex md:w-72 lg:w-80 shrink-0 border-r">
         <ConversationSidebar />
       </div>
 
       {/* Main chat area */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0">
         {activeConversationId ? (
           <ChatWindow conversationId={activeConversationId} />
         ) : (
-          <div className="flex-1 flex items-center justify-center">
+          <div className="flex-1 flex items-center justify-center min-h-0">
             {isLoading ? (
               <Loader2 className="h-6 w-6 animate-spin text-primary" />
             ) : (

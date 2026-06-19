@@ -27,7 +27,7 @@ export function ConversationSidebar() {
   };
 
   return (
-    <div className="flex flex-col h-full border-r">
+    <div className="flex flex-col h-full">
       <div className="p-3 border-b">
         <Button
           onClick={handleNewConversation}

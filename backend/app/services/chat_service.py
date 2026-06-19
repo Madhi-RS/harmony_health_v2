@@ -65,7 +65,7 @@ class ChatService:
         ]
 
         # 4. Send to AI service
-        ai_response = await self.ai_client.send_message(
+        ai_response = await self.ai_client.send_message_safe(
             message=request.message,
             conversation_history=conversation_history,
         )
@@ -126,7 +126,7 @@ class ChatService:
         ]
 
         # 4. Send to AI
-        ai_response = await self.ai_client.send_message(
+        ai_response = await self.ai_client.send_message_safe(
             message=transcript,
             conversation_history=conversation_history,
         )

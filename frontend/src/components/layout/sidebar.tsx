@@ -28,15 +28,15 @@ export function Sidebar() {
   const logout = useLogout();
 
   return (
-    <aside className="hidden md:flex md:flex-col w-64 border-r bg-card">
+    <aside className="hidden md:flex md:flex-col h-full w-64 border-r bg-card">
       {/* Logo */}
-      <div className="flex items-center gap-2 px-6 py-5 border-b">
-        <Hospital className="h-6 w-6 text-primary" />
-        <span className="font-semibold text-lg">Harmony Health</span>
+      <div className="flex items-center gap-2 px-6 py-4 border-b shrink-0">
+        <Hospital className="h-5 w-5 text-primary" />
+        <span className="font-semibold text-base">Harmony Health</span>
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-1">
+      {/* Navigation — scrollable */}
+      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon;
           const isActive = pathname.startsWith(item.href);
@@ -57,8 +57,8 @@ export function Sidebar() {
         })}
       </nav>
 
-      {/* User info + logout */}
-      <div className="border-t px-4 py-4 space-y-2">
+      {/* User info + logout — pinned to bottom */}
+      <div className="border-t px-4 py-3 space-y-2 shrink-0">
         <div className="px-2 text-sm text-muted-foreground truncate">
           {user?.username || "User"}
           <span className="block text-xs opacity-60">{user?.role}</span>

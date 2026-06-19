@@ -1,37 +1,61 @@
 "use client";
 
+import { useQuery } from "@tanstack/react-query";
+import api from "@/lib/axios";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/shared/page-header";
-import { Users, CalendarClock, MessageSquare, Activity } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Users, CalendarClock, MessageSquare, ClipboardList, Stethoscope } from "lucide-react";
 
-const stats = [
-  {
-    title: "Total Patients",
-    value: "—",
-    icon: Users,
-    description: "Registered patients",
-  },
-  {
-    title: "Today's Appointments",
-    value: "—",
-    icon: CalendarClock,
-    description: "Scheduled for today",
-  },
-  {
-    title: "Active Conversations",
-    value: "—",
-    icon: MessageSquare,
-    description: "AI Receptionist chats",
-  },
-  {
-    title: "Recent Activity",
-    value: "—",
-    icon: Activity,
-    description: "Actions in last 24h",
-  },
-];
+interface DashboardStats {
+  total_patients: number;
+  today_appointments: number;
+  total_appointments: number;
+  scheduled_appointments: number;
+  active_conversations: number;
+}
 
 export default function DashboardPage() {
+  const { data: stats, isLoading } = useQuery<DashboardStats>({
+    queryKey: ["dashboard-stats"],
+    queryFn: async () => {
+      const { data } = await api.get("/dashboard/stats");
+      return data;
+    },
+    refetchInterval: 30_000,
+  });
+
+  const statCards = [
+    {
+      title: "Total Patients",
+      value: stats?.total_patients,
+      icon: Users,
+      description: "Active patient records",
+      color: "text-blue-600",
+    },
+    {
+      title: "Scheduled",
+      value: stats?.scheduled_appointments,
+      icon: ClipboardList,
+      description: "Upcoming appointments",
+      color: "text-amber-600",
+    },
+    {
+      title: "Today",
+      value: stats?.today_appointments,
+      icon: CalendarClock,
+      description: "Appointments today",
+      color: "text-green-600",
+    },
+    {
+      title: "Conversations",
+      value: stats?.active_conversations,
+      icon: MessageSquare,
+      description: "Active AI chats (7 days)",
+      color: "text-purple-600",
+    },
+  ];
+
   return (
     <div>
       <PageHeader
@@ -40,7 +64,7 @@ export default function DashboardPage() {
       />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        {stats.map((stat) => {
+        {statCards.map((stat) => {
           const Icon = stat.icon;
           return (
             <Card key={stat.title}>
@@ -48,10 +72,16 @@ export default function DashboardPage() {
                 <CardTitle className="text-sm font-medium">
                   {stat.title}
                 </CardTitle>
-                <Icon className="h-4 w-4 text-muted-foreground" />
+                <Icon className={`h-4 w-4 ${stat.color}`} />
               </CardHeader>
               <CardContent>
-                <div className="text-2xl font-bold">{stat.value}</div>
+                <div className="text-2xl font-bold">
+                  {isLoading ? (
+                    <Skeleton className="h-8 w-16" />
+                  ) : (
+                    stat.value ?? "—"
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground mt-1">
                   {stat.description}
                 </p>
