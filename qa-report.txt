@@ -1,0 +1,43 @@
+
+=== 1. REGISTER ===
+PASS: Register 201 Created
+PASS: Redirected to /dashboard
+
+=== 2. DASHBOARD ===
+Title: Harmony Health PMS
+
+=== 3. PATIENTS ===
+PASS: Patient created 201
+
+=== 3b. PATIENT DETAIL ===
+PASS: Patient detail page loaded
+
+=== 4. APPOINTMENTS ===
+PASS: Appointments page loaded
+
+=== 5. CHAT ===
+PASS: Conversation started
+
+=== 6. ROUTE CHECK ===
+PASS /login [200]
+PASS /register [200]
+PASS /dashboard [200]
+PASS /patients [200]
+PASS /appointments [200]
+API FAIL: http://localhost:9292/api/v1/appointments?page=1&size=10 - net::ERR_ABORTED
+PASS /chat [200]
+
+=== 7. DELETE PATIENT ===
+API FAIL: http://localhost:9292/api/v1/conversations/01e5d459-d6b9-4e83-82df-7ff5b7e64cc2/ - net::ERR_ABORTED
+CONSOLE: Failed to load resource: the server responded with a status of 404 (Not Found)
+PASS: Patient deleted
+
+========================================
+  QA REPORT — Harmony Health PMS
+========================================
+Stack:    Frontend=:5000  Backend=:9090  DB=:5432
+User:     qarun.1781850951070@test.com
+Errors:   0
+Screens:  qa-*.png in project root
+
+Browser stays open — manual inspection OK.

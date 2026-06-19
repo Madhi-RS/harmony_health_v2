@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/stores/auth-store";
 import { Loader2 } from "lucide-react";
@@ -12,15 +12,22 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({ children }: ProtectedRouteProps) {
   const router = useRouter();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
-  const isLoading = useAuthStore((s) => s.isLoading);
+  const tokens = useAuthStore((s) => s.tokens);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Wait for Zustand hydration from localStorage
+  useEffect(() => {
+    setHydrated(true);
+  }, []);
 
   useEffect(() => {
-    if (!isLoading && !isAuthenticated) {
+    if (hydrated && !tokens?.access_token) {
       router.push("/login");
     }
-  }, [isAuthenticated, isLoading, router]);
+  }, [hydrated, tokens, router]);
 
-  if (isLoading) {
+  // Show loading while hydrating
+  if (!hydrated) {
     return (
       <div className="flex h-screen items-center justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -28,7 +35,8 @@ export function ProtectedRoute({ children }: ProtectedRouteProps) {
     );
   }
 
-  if (!isAuthenticated) {
+  // No token after hydration — wait for redirect
+  if (!tokens?.access_token) {
     return null;
   }
 

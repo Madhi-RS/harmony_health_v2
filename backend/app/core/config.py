@@ -33,7 +33,11 @@ class Settings(BaseSettings):
     VOICE_SYNC_API_KEY: str = "change-me-in-production"
 
     # CORS
-    CORS_ORIGINS: list[str] = ["http://localhost:3000"]
+    CORS_ORIGINS: list[str] = [
+        "http://localhost:3000",
+        "http://localhost:3001",
+        "http://localhost:3002",
+    ]
 
     # Rate Limiting
     RATE_LIMIT_ENABLED: bool = True
