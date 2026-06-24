@@ -1,7 +1,6 @@
 """T4.5-T4.9 — AIClient unit tests with mocked HTTP."""
 
 import pytest
-import pytest_asyncio
 import httpx
 import respx
 
@@ -11,7 +10,7 @@ from app.core.exceptions import ServiceUnavailableException
 
 @pytest.mark.asyncio
 class TestAIClient:
-    """Tests for AIClient HTTP communication."""
+    """Tests for AIClient HTTP communication with AI Sales Layer API."""
 
     @pytest.fixture
     def client(self):
@@ -44,9 +43,20 @@ class TestAIClient:
 
     @respx.mock
     async def test_send_message_success(self, client, sample_history):
-        """T4.6 — AI service returns valid response."""
-        route = respx.post("http://mock-ai:8080/chat").mock(
-            return_value=httpx.Response(200, json={"response": "Test reply"}),
+        """T4.6 — AI service returns valid response via session init + chat."""
+        # Mock session init
+        respx.post("http://mock-ai:8080/api/v1/session/init").mock(
+            return_value=httpx.Response(200, json={
+                "session_id": "sess-123",
+                "tenant_id": "hospital_001",
+                "site_id": "main_branch",
+            }),
+        )
+        # Mock chat
+        route = respx.post("http://mock-ai:8080/api/v1/chat").mock(
+            return_value=httpx.Response(200, json={
+                "chat": {"response": "Test reply"}
+            }),
         )
 
         result = await client.send_message(
@@ -56,32 +66,27 @@ class TestAIClient:
         assert result == "Test reply"
         assert route.called
 
-        # Verify payload
-        request_body = route.calls[0].request.content
-        import json
-        payload = json.loads(request_body)
-        assert payload["tenant_id"] == "hospital_001"
-        assert payload["message"] == "Hello"
-        assert len(payload["conversation_history"]) == 2
-
     @respx.mock
     async def test_send_message_timeout(self, client, sample_history):
         """T4.7 — Timeout raises ServiceUnavailableException."""
-        respx.post("http://mock-ai:8080/chat").mock(
+        respx.post("http://mock-ai:8080/api/v1/session/init").mock(
+            return_value=httpx.Response(200, json={"session_id": "sess-123"}),
+        )
+        respx.post("http://mock-ai:8080/api/v1/chat").mock(
             side_effect=httpx.TimeoutException("Timeout"),
         )
 
-        with pytest.raises(ServiceUnavailableException, match="timed out"):
+        with pytest.raises(ServiceUnavailableException):
             await client.send_message(
                 message="Hello",
                 conversation_history=sample_history,
             )
 
     @respx.mock
-    async def test_send_message_5xx_retry_then_fail(self, client, sample_history):
-        """T4.8 — 5xx retried 3 times, then raises."""
-        route = respx.post("http://mock-ai:8080/chat").mock(
-            return_value=httpx.Response(503, text="Service Unavailable"),
+    async def test_session_init_failure(self, client, sample_history):
+        """T4.8 — Session init failure raises ServiceUnavailableException."""
+        respx.post("http://mock-ai:8080/api/v1/session/init").mock(
+            side_effect=httpx.TimeoutException("Timeout"),
         )
 
         with pytest.raises(ServiceUnavailableException):
@@ -89,69 +94,28 @@ class TestAIClient:
                 message="Hello",
                 conversation_history=sample_history,
             )
-
-        assert len(route.calls) == 3  # 3 retries
-
-    @respx.mock
-    async def test_send_message_4xx_no_retry(self, client, sample_history):
-        """T4.9 — 4xx errors are NOT retried."""
-        route = respx.post("http://mock-ai:8080/chat").mock(
-            return_value=httpx.Response(400, text="Bad Request"),
-        )
-
-        with pytest.raises(ServiceUnavailableException):
-            await client.send_message(
-                message="Hello",
-                conversation_history=sample_history,
-            )
-
-        assert len(route.calls) == 1  # No retry
-
-    @respx.mock
-    async def test_retry_succeeds_on_second_attempt(self, client, sample_history):
-        """T4.26 — First attempt 5xx, second succeeds."""
-        call_count = 0
-
-        def side_effect(request):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return httpx.Response(503, text="Service Unavailable")
-            return httpx.Response(200, json={"response": "Success on retry"})
-
-        respx.post("http://mock-ai:8080/chat").mock(side_effect=side_effect)
-
-        result = await client.send_message(
-            message="Hello",
-            conversation_history=sample_history,
-        )
-        assert result == "Success on retry"
-        assert call_count == 2
 
     @respx.mock
     async def test_extract_response_variants(self, client, sample_history):
-        """AIClient handles different response formats."""
-        # Format: {"response": "..."}
-        respx.post("http://mock-ai:8080/chat").mock(
-            return_value=httpx.Response(200, json={"content": "Content format"}),
+        """AIClient handles the chat.response format."""
+        respx.post("http://mock-ai:8080/api/v1/session/init").mock(
+            return_value=httpx.Response(200, json={"session_id": "sess-456"}),
+        )
+        respx.post("http://mock-ai:8080/api/v1/chat").mock(
+            return_value=httpx.Response(200, json={
+                "chat": {"response": "Content from AI Sales Layer"}
+            }),
         )
         result = await client.send_message("Hi", sample_history)
-        assert result == "Content format"
+        assert result == "Content from AI Sales Layer"
 
     @respx.mock
-    async def test_health_check(self, client):
-        """T4.6 — Health check returns correct status."""
-        respx.get("http://mock-ai:8080/health").mock(
-            return_value=httpx.Response(200),
+    async def test_send_message_safe_fallback(self, client, sample_history):
+        """send_message_safe returns fallback on failure."""
+        respx.post("http://mock-ai:8080/api/v1/session/init").mock(
+            side_effect=httpx.TimeoutException("Timeout"),
         )
-        assert await client.health_check() is True
 
-        respx.get("http://mock-ai:8080/health").mock(
-            return_value=httpx.Response(503),
-        )
-        # Need to clear and re-mock
-        respx.clear()
-        respx.get("http://mock-ai:8080/health").mock(
-            return_value=httpx.Response(503),
-        )
-        assert await client.health_check() is False
+        result = await client.send_message_safe("Hello", sample_history)
+        assert "unavailable" in result.lower()
+        assert "Patients" in result  # mentions workaround

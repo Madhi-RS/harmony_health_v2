@@ -44,11 +44,11 @@ export function Header({ onMenuClick }: HeaderProps) {
         {/* User dropdown */}
         <DropdownMenu>
           <DropdownMenuTrigger className="focus:outline-none">
-            <Button variant="ghost" className="relative h-8 w-8 rounded-full">
+            <div className="relative inline-flex h-8 w-8 items-center justify-center rounded-full hover:bg-muted">
               <Avatar className="h-8 w-8">
                 <AvatarFallback>{initials}</AvatarFallback>
               </Avatar>
-            </Button>
+            </div>
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-56" align="end">
             <DropdownMenuLabel className="font-normal">
