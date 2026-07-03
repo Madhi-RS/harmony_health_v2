@@ -89,3 +89,41 @@ class AnalyticsService:
             "total_cost": cost.total_cost,
             "currency": cost.currency,
         }
+
+    async def get_turns(self, call_id: uuid.UUID) -> dict:
+        """Get per-turn breakdown combining latency and cost data."""
+        call = await self.repo.get(call_id)
+        if call is None:
+            raise NotFoundException("CallLog", str(call_id))
+
+        metrics = await self.repo.get_latency_metrics(call_id)
+        cost = await self.repo.get_cost_breakdown(call_id)
+
+        turns = []
+        for m in metrics:
+            turn_cost = None
+            if cost:
+                per_turn = cost.total_cost / max(len(metrics), 1)
+                turn_cost = {
+                    "stt_cost": round(cost.stt_cost / max(len(metrics), 1), 6),
+                    "llm_cost": round(cost.llm_cost / max(len(metrics), 1), 6),
+                    "tts_cost": round(cost.tts_cost / max(len(metrics), 1), 6),
+                    "total_cost": round(per_turn, 6),
+                    "currency": cost.currency,
+                }
+
+            turns.append({
+                "turn_number": m.turn_number,
+                "stt_latency_ms": m.stt_latency_ms,
+                "llm_latency_ms": m.llm_latency_ms,
+                "tts_latency_ms": m.tts_latency_ms,
+                "total_latency_ms": m.total_latency_ms,
+                "cost": turn_cost,
+            })
+
+        return {
+            "call_id": str(call.id),
+            "total_turns": len(turns),
+            "duration_seconds": call.duration_seconds or 0,
+            "turns": turns,
+        }

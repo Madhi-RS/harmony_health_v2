@@ -13,13 +13,14 @@ logger = logging.getLogger("ai_client")
 class AIClient:
     """Client for communicating with the external AI Sales Layer.
 
-    Uses the Knowledge Management pipeline for RAG retrieval:
-        1. POST /api/v1/session/init → X-Session-ID (tenant + site scoping)
-        2. POST /api/v1/sales/query → KM pipeline with RAG retrieval
+    Chat flow:
+        1. POST /api/v1/session/init → session_id (tenant + site + user scoping)
+        2. POST /api/v1/chat → chatbot response
         3. Parse and log context items for retrieval audit
 
     Tenant isolation: tenant_id + site_id at session init.
-    KM pipeline resolves tenant identity from business profile.
+    Layout-related responses (if any) are ignored — only the chatbot
+    response is required for the backend to function.
     """
 
     def __init__(
@@ -28,13 +29,15 @@ class AIClient:
         tenant_id: str = settings.AI_SERVICE_TENANT_ID,
         site_id: str = settings.AI_SERVICE_SITE_ID,
         timeout: int = settings.AI_SERVICE_TIMEOUT,
+        *,
+        user_id: str = "",
     ):
         self.base_url = base_url.rstrip("/")
         self.tenant_id = tenant_id
         self.site_id = site_id
         self.timeout = timeout
         self._session_id: str | None = None
-        self._tenant_user_id: str = "harmony-pms-user"
+        self._tenant_user_id: str = user_id or "harmony-pms-user"
 
     async def _ensure_session(self) -> str:
         """Get or create an AI service session. Includes site_id for tenant scoping."""
@@ -132,17 +135,8 @@ class AIClient:
         message: str,
         conversation_history: list[dict[str, str]],
     ) -> str:
-        """Send message with fallback when AI service is unavailable."""
-        try:
-            return await self.send_message(message, conversation_history)
-        except ServiceUnavailableException as e:
-            logger.warning("AI: fallback used | reason=%s", e.message)
-            return (
-                "I'm sorry, the AI assistant is currently unavailable. "
-                "Please try again later or contact the front desk for assistance.\n\n"
-                "You can still use the system to manage patients and appointments "
-                "from the Patients and Appointments tabs."
-            )
+        """Send message to AI Sales Layer. Errors propagate to caller."""
+        return await self.send_message(message, conversation_history)
 
     def _extract_and_log(self, data: dict[str, Any]) -> str:
         """Extract the AI response and log retrieval metadata.

@@ -13,6 +13,7 @@ import {
   MessageSquare,
   LogOut,
   Hospital,
+  BarChart3,
 } from "lucide-react";
 
 const navItems = [
@@ -55,6 +56,22 @@ export function Sidebar() {
             </Link>
           );
         })}
+
+        {/* Analytics — ADMIN only */}
+        {user?.role === "ADMIN" && (
+          <Link href="/analytics">
+            <Button
+              variant={pathname.startsWith("/analytics") ? "secondary" : "ghost"}
+              className={cn(
+                "w-full justify-start gap-3",
+                pathname.startsWith("/analytics") && "font-medium"
+              )}
+            >
+              <BarChart3 className="h-4 w-4" />
+              Analytics
+            </Button>
+          </Link>
+        )}
       </nav>
 
       {/* User info + logout — pinned to bottom */}

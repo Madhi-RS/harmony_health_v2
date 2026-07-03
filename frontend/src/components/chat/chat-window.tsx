@@ -31,6 +31,9 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     isRecording,
     startRecording,
     stopRecording,
+    connectLiveKit,
+    disconnectLiveKit,
+    isLiveKitConnected,
     playAudio,
   } = useVoice();
 
@@ -83,9 +86,9 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
         onSend={(text) => sendMessage(conversationId, text)}
         isLoading={isSending}
         disabled={!conversationId}
-        onStartVoice={startRecording}
-        onStopVoice={stopRecording}
-        isRecording={isRecording}
+        onStartVoice={() => connectLiveKit(conversationId)}
+        onStopVoice={disconnectLiveKit}
+        isRecording={isRecording || isLiveKitConnected}
       />
     </div>
   );

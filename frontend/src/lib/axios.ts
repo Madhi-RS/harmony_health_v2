@@ -10,21 +10,21 @@ const api = axios.create({
   timeout: 30000,
 });
 
-// Request interceptor — attach access token
+// Request interceptor — attach Harmony login token (never CarePlus)
 api.interceptors.request.use(
   (config) => {
     if (typeof window !== "undefined") {
-      const stored = localStorage.getItem("auth-storage");
-      if (stored) {
-        try {
+      try {
+        const stored = localStorage.getItem("auth-storage");
+        if (stored) {
           const parsed = JSON.parse(stored);
           const token = parsed?.state?.tokens?.access_token;
           if (token) {
             config.headers.Authorization = `Bearer ${token}`;
           }
-        } catch {
-          // ignore parse errors
         }
+      } catch {
+        // ignore
       }
     }
     return config;

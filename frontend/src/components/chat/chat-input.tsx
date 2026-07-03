@@ -10,7 +10,7 @@ interface ChatInputProps {
   isLoading: boolean;
   disabled?: boolean;
   onStartVoice?: () => void;
-  onStopVoice?: () => Promise<Blob | null>;
+  onStopVoice?: () => Promise<Blob | null> | Promise<void> | void;
   isRecording?: boolean;
 }
 
@@ -25,6 +25,17 @@ export function ChatInput({
   const [text, setText] = useState("");
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const isVoiceMode = useChatStore((s) => s.isVoiceMode);
+
+  // When voice mode toggles on, immediately connect LiveKit
+  const handleVoiceToggle = () => {
+    console.log("[MIC] Voice toggle clicked, connecting LiveKit...");
+    if (!isVoiceMode && onStartVoice) {
+      useChatStore.getState().setVoiceMode(true);
+      onStartVoice();  // directly call connectLiveKit
+    } else {
+      useChatStore.getState().toggleVoiceMode();
+    }
+  };
 
   // Auto-resize textarea
   useEffect(() => {
@@ -116,7 +127,7 @@ export function ChatInput({
             variant="ghost"
             size="icon"
             className="shrink-0"
-            onClick={() => useChatStore.getState().toggleVoiceMode()}
+            onClick={handleVoiceToggle}
             disabled={isLoading}
           >
             <Mic className="h-4 w-4" />

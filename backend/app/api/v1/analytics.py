@@ -74,3 +74,13 @@ async def get_call_latency(
 ):
     """Get per-turn latency metrics (ADMIN only)."""
     return await service.get_latency(call_id)
+
+
+@router.get("/calls/{call_id}/turns")
+async def get_call_turns(
+    call_id: uuid.UUID,
+    service: AnalyticsService = Depends(get_analytics_service),
+    _admin: User = Depends(_enforce_admin),
+):
+    """Get per-turn breakdown with latency and cost per turn (ADMIN only)."""
+    return await service.get_turns(call_id)

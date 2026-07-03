@@ -54,7 +54,7 @@ async def _stream_response(
     ]
 
     # Call AI
-    ai_client = AIClient()
+    ai_client = AIClient(user_id=str(current_user.id))
     try:
         response = await ai_client.send_message(request.message, history)
     except Exception as e:

@@ -7,6 +7,7 @@ class Settings(BaseSettings):
         env_file=".env",
         env_file_encoding="utf-8",
         case_sensitive=False,
+        extra="ignore",
     )
 
     # Application
@@ -17,9 +18,11 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/harmony_health"
 
-    # JWT
-    JWT_SECRET: str = "change-me-in-production"
-    JWT_ALGORITHM: str = "HS256"
+    # JWT — RS256 asymmetric signing
+    JWT_ALGORITHM: str = "RS256"
+    JWT_PRIVATE_KEY_PATH: str = "jwt_private.pem"
+    JWT_PUBLIC_KEY_PATH: str = "jwt_public.pem"
+    CAREPLUS_PUBLIC_KEY_PATH: str = "careplus_public.pem"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
@@ -31,6 +34,11 @@ class Settings(BaseSettings):
 
     # Voice Service (internal)
     VOICE_SYNC_API_KEY: str = "change-me-in-production"
+
+    # LiveKit
+    LIVEKIT_URL: str = "ws://localhost:7880"
+    LIVEKIT_API_KEY: str = "devkey"
+    LIVEKIT_API_SECRET: str = "secret"
 
     # CORS
     CORS_ORIGINS: list[str] = [

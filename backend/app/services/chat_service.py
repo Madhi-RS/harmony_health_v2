@@ -21,7 +21,7 @@ class ChatService:
         self.conv_repo = ConversationRepository(db)
         self.msg_repo = MessageRepository(db)
         self.conv_service = ConversationService(db, current_user)
-        self.ai_client = AIClient()
+        self.ai_client = AIClient(user_id=str(self.user.id))
 
     async def process_message(self, request: ChatRequest) -> ChatResponse:
         """Process a chat message through the full pipeline.
@@ -64,11 +64,19 @@ class ChatService:
             if m.role in (MessageRole.USER, MessageRole.ASSISTANT)
         ]
 
-        # 4. Send to AI service
+        # 4. Send to AI Sales Layer via AIClient
+        import logging
+        _log = logging.getLogger("chat_service")
+        _log.info(
+            "CHAT → AI Sales Layer | conv=%s | msg_len=%d | history=%d turns | tenant=%s site=%s",
+            request.conversation_id, len(request.message),
+            len(conversation_history), self.ai_client.tenant_id, self.ai_client.site_id,
+        )
         ai_response = await self.ai_client.send_message_safe(
             message=request.message,
             conversation_history=conversation_history,
         )
+        _log.info("CHAT ← AI Sales Layer | response_len=%d", len(ai_response))
 
         # 5. Append assistant response
         assistant_message = await self.conv_service.append_message(

@@ -15,16 +15,16 @@ class Settings(BaseSettings):
     # LiveKit
     LIVEKIT_URL: str = "ws://localhost:7880"
     LIVEKIT_API_KEY: str = "devkey"
-    LIVEKIT_API_SECRET: str = "devsecret"
+    LIVEKIT_API_SECRET: str = "secret"
 
     # FasterWhisper
-    WHISPER_MODEL_PATH: str = "receptionist-voice-poc/model/whisper/faster-whisper-small-int8"
+    WHISPER_MODEL_PATH: str = "C:\\Users\\MadhiarasiRS\\Downloads\\faster-whisper-small-int8"
     WHISPER_DEVICE: str = "cpu"
     WHISPER_COMPUTE_TYPE: str = "int8"
 
     # Piper TTS
-    PIPER_MODEL_PATH: str = "receptionist-voice-poc/voice/en_US-lessac-medium.onnx"
-    PIPER_CONFIG_PATH: str = "receptionist-voice-poc/voice/en_US-lessac-medium.onnx.json"
+    PIPER_MODEL_PATH: str = "C:\\Users\\MadhiarasiRS\\Downloads\\en_US-lessac-medium.onnx"
+    PIPER_CONFIG_PATH: str = "C:\\Users\\MadhiarasiRS\\Downloads\\en_US-lessac-medium.onnx.json"
 
     # Backend API (for voice sync)
     BACKEND_API_URL: str = "http://localhost:8000/api/v1"

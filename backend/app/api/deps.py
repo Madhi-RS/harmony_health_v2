@@ -23,17 +23,40 @@ async def get_current_user(
 
     try:
         payload = decode_token(credentials.credentials)
-        if payload.get("type") != "access":
-            raise UnauthorizedException("Invalid token type")
-        user_id: str = payload.get("sub", "")
-        if not user_id:
-            raise UnauthorizedException("Invalid token payload")
     except JWTError:
         raise UnauthorizedException("Invalid or expired token")
 
+    # CarePlus tokens: have userId but no sub or type
+    is_careplus = "userId" in payload and "sub" not in payload
+
+    if is_careplus:
+        user_id = payload["userId"]
+    else:
+        if payload.get("type") != "access":
+            raise UnauthorizedException("Invalid token type")
+        user_id = payload.get("sub", "")
+        if not user_id:
+            raise UnauthorizedException("Invalid token payload")
+
     from app.repositories.user_repository import UserRepository
+    from app.core.security import hash_password
+
     repo = UserRepository(db)
     user = await repo.get(user_id)
+
+    if user is None and is_careplus:
+        # Auto-create user from CarePlus token claims
+        email = payload.get("email", "careplus@unknown.com")
+        user = await repo.create(
+            id=user_id,
+            email=email,
+            username=email.split("@")[0],
+            password_hash=hash_password("careplus-sso"),
+            role=UserRole.RECEPTIONIST,
+            is_active=True,
+        )
+        await db.commit()
+
     if user is None:
         raise UnauthorizedException("User not found")
     if not user.is_active:

@@ -45,7 +45,7 @@ class SpeechToTextService:
             self.initialize()
 
         # Save to temp file (faster-whisper reads from disk)
-        temp_path = Path(settings.RECORDINGS_DIR) / "_temp_audio.webm"
+        temp_path = Path(settings.RECORDINGS_DIR) / "_temp_audio.wav"
         temp_path.parent.mkdir(parents=True, exist_ok=True)
         temp_path.write_bytes(audio_bytes)
 

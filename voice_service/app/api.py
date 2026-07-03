@@ -1,10 +1,12 @@
 import base64
+import logging
 from fastapi import APIRouter, UploadFile, File, Form, WebSocket, WebSocketDisconnect
 from typing import Optional
 
 from app.orchestrator import VoiceOrchestrator
 from app.models import TranscribeResponse, SynthesizeResponse, ProcessResponse
 
+logger = logging.getLogger("voice_api")
 router = APIRouter(prefix="/voice", tags=["Voice"])
 orchestrator = VoiceOrchestrator()
 
@@ -121,3 +123,71 @@ async def realtime_voice(websocket: WebSocket):
             await websocket.send_json({"error": str(e)})
         except Exception:
             pass
+
+
+# ── Agent Join — called by backend after creating voice session ──
+
+from pydantic import BaseModel as PydanticBaseModel
+
+
+class AgentJoinRequest(PydanticBaseModel):
+    room_name: str
+    livekit_url: str = "ws://localhost:7880"
+    token: str | None = None
+    conversation_id: str | None = None
+    call_id: str | None = None
+
+
+@router.post("/agent/join")
+async def agent_join(request: AgentJoinRequest):
+    """Called by PMS backend after creating a voice session.
+    Connects the AgentWorker to the LiveKit room and plays welcome message.
+    """
+    from app.agent_worker import AgentWorker
+    import asyncio
+
+    worker = AgentWorker()
+    worker.ensure_models()
+
+    # 1. Synthesize welcome message
+    welcome_text = (
+        "Hello! I'm Harmony, your AI receptionist at Harmony General Hospital. "
+        "How can I help you today?"
+    )
+    welcome_audio = await worker.tts.synthesize(welcome_text)
+
+    # 2. Persist welcome audio if call_id provided
+    if request.call_id:
+        await worker._persist_audio(request.call_id, welcome_audio, "assistant")
+
+    # 3. Generate agent token with unique identity
+    agent_identity = f"harmony-agent-{request.call_id or 'welcome'}"
+    agent_token = request.token  # Use same room token; identity mismatch is OK for publish-only
+    # Actually, we need a NEW token for the agent with the agent identity
+    # For now, the agent joins with the same token but different track name
+    # LiveKit allows multiple participants in a room as long as identities differ
+
+    # 4. Launch agent as a background task (fire-and-forget).
+    #    The agent stays alive until the room is closed or disconnected.
+
+    async def _run_agent_background():
+        try:
+            await worker.run_agent(
+                room_name=request.room_name,
+                livekit_url=request.livekit_url,
+                token=request.token or "",
+                conversation_id=request.conversation_id,
+                call_id=request.call_id,
+            )
+        except Exception as e:
+            logger.warning("Agent background task failed: %s", e)
+
+    asyncio.create_task(_run_agent_background())
+
+    return {
+        "status": "agent_joined",
+        "room_name": request.room_name,
+        "welcome_audio_size": len(welcome_audio),
+        "call_id": request.call_id,
+    }
+
