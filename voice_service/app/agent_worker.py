@@ -62,7 +62,12 @@ class AgentWorker:
         conversation_id: str | None = None,
         call_id: str | None = None,
     ):
-        """Connect to LiveKit room as agent, play welcome, handle audio."""
+        """Connect to LiveKit room as agent, play welcome, handle audio.
+
+        IMPORTANT: All event handlers are registered BEFORE room.connect()
+        to avoid missing events from participants that join before we finish
+        publishing the welcome audio (a ~2-second window).
+        """
         self.ensure_models()
         self._conversation_id = conversation_id
         self._call_id = call_id
@@ -86,62 +91,207 @@ class AgentWorker:
             from livekit import rtc
 
             room = rtc.Room()
-            print(f"[AGENT] Connecting to LiveKit room={room_name} url={livekit_url}")
-            logger.info("Agent connecting to LiveKit room=%s url=%s", room_name, livekit_url)
-            await room.connect(livekit_url, token)
-            print(f"[AGENT] Connected to LiveKit room: {room.name}  (participant: {room.local_participant.identity})")
-            logger.info("Agent connected to LiveKit room: %s", room.name)
 
-            # Publish welcome audio as a track (uses shared WAV helper)
-            await self._publish_wav_audio(room, welcome_audio, track_name="agent-welcome")
-            logger.info("Agent welcome message played. Listening for user audio...")
+            # ──────────────────────────────────────────────────────
+            # Register ALL event handlers BEFORE connecting.
+            # This eliminates the race condition where the frontend
+            # joins and publishes its mic track before we finish
+            # playing the welcome audio (~2s window).
+            # ──────────────────────────────────────────────────────
 
-            # Listen for user audio tracks (skip our own published tracks)
-            @room.on("track_subscribed")
-            def on_track(track: rtc.Track, *args):
+            # Track PUBLISHED by any participant (including us)
+            @room.on("track_published")
+            def on_track_published(publication, participant):
                 logger.info(
-                    "Track subscribed: name=%s kind=%s source=%s",
+                    "Track PUBLISHED: name=%s kind=%s participant=%s sid=%s",
+                    getattr(publication, "name", "?"),
+                    getattr(publication, "kind", "?"),
+                    participant.identity if participant else "?",
+                    getattr(publication, "sid", "?"),
+                )
+                print(
+                    f"[AGENT] ▶ Track PUBLISHED: {getattr(publication, 'name', '?')} "
+                    f"kind={getattr(publication, 'kind', '?')} "
+                    f"by={participant.identity if participant else '?'}"
+                )
+
+            # Track SUBSCRIBED — this is how we receive remote audio
+            @room.on("track_subscribed")
+            def on_track_subscribed(
+                track: rtc.Track,
+                publication: rtc.RemoteTrackPublication,
+                participant: rtc.RemoteParticipant,
+            ):
+                logger.info(
+                    "Track SUBSCRIBED: name=%s kind=%s source=%s "
+                    "participant=%s sid=%s",
                     getattr(track, "name", "?"),
                     track.kind,
                     getattr(track, "source", "unknown"),
+                    participant.identity if participant else "?",
+                    getattr(publication, "sid", "?"),
                 )
-                # Ignore our own tracks to avoid processing agent responses as input
-                if hasattr(track, "participant") and hasattr(room, "local_participant"):
-                    if track.participant and track.participant.identity == room.local_participant.identity:
-                        logger.info("Skipping own track: %s", track.name)
+                print(
+                    f"[AGENT] ◀ Track SUBSCRIBED: {getattr(track, 'name', '?')} "
+                    f"kind={track.kind} from={participant.identity if participant else '?'}"
+                )
+
+                # Ignore our own tracks
+                if participant and hasattr(room, "local_participant"):
+                    if participant.identity == room.local_participant.identity:
+                        logger.info("Skipping own track: %s", getattr(track, "name", "?"))
                         return
+
                 if track.kind == rtc.TrackKind.KIND_AUDIO:
-                    print(f"[AGENT] Received user audio track: {track.name} (starting VAD listener)")
-                    logger.info("Agent received user audio track: %s (starting VAD listener)", track.name)
+                    print(
+                        f"[AGENT] ▶▶ Processing user audio track: "
+                        f"{getattr(track, 'name', '?')} "
+                        f"from={participant.identity if participant else '?'}"
+                    )
+                    logger.info(
+                        "Starting audio processing for track from participant=%s",
+                        participant.identity if participant else "?",
+                    )
                     asyncio.ensure_future(self._handle_audio_track(track, room))
 
-            # Also log remote participant events
+            # Track UNSUBSCRIBED
+            @room.on("track_unsubscribed")
+            def on_track_unsubscribed(
+                track: rtc.Track,
+                publication: rtc.RemoteTrackPublication,
+                participant: rtc.RemoteParticipant,
+            ):
+                logger.info(
+                    "Track UNSUBSCRIBED: name=%s kind=%s participant=%s",
+                    getattr(track, "name", "?"),
+                    getattr(track, "kind", "?"),
+                    participant.identity if participant else "?",
+                )
+
+            # Participant connected
             @room.on("participant_connected")
-            def on_participant_connected(participant):
-                logger.info("Remote participant connected: %s", participant.identity)
+            def on_participant_connected(participant: rtc.RemoteParticipant):
+                logger.info(
+                    "Participant CONNECTED: identity=%s metadata=%s sid=%s",
+                    participant.identity,
+                    getattr(participant, "metadata", ""),
+                    getattr(participant, "sid", "?"),
+                )
+                print(f"[AGENT] 👤 Participant CONNECTED: {participant.identity}")
+                # Immediately check for already-published tracks from this participant
+                asyncio.ensure_future(
+                    self._check_participant_tracks(room, participant)
+                )
 
+            # Participant disconnected
             @room.on("participant_disconnected")
-            def on_participant_disconnected(participant):
-                logger.info("Remote participant disconnected: %s", participant.identity)
+            def on_participant_disconnected(participant: rtc.RemoteParticipant):
+                logger.info(
+                    "Participant DISCONNECTED: identity=%s",
+                    participant.identity,
+                )
+                print(f"[AGENT] 👋 Participant DISCONNECTED: {participant.identity}")
 
-            # ── Keep the agent alive until disconnected ──
-            # The room must stay in scope so the agent keeps listening.
-            # We await a disconnect future instead of returning immediately.
+            # Connection state changes (for debugging connectivity issues)
+            @room.on("connection_state_changed")
+            def on_connection_state_changed(state):
+                logger.info("Connection state changed → %s", state)
+                print(f"[AGENT] 🔌 Connection state: {state}")
+
+            # Room disconnected
             disconnect_future: asyncio.Future[None] = asyncio.Future()
 
             @room.on("disconnected")
-            def on_disconnected(*args):
-                logger.info("Agent disconnected from room")
+            def on_disconnected(reason=None):
+                logger.info("Agent DISCONNECTED from room. Reason: %s", reason)
+                print(f"[AGENT] ❌ Disconnected. Reason: {reason}")
                 if not disconnect_future.done():
                     disconnect_future.set_result(None)
 
-            logger.info("Agent ready — listening for audio frames")
+            # ── Now connect (handlers are already registered) ──
+            print(
+                f"[AGENT] Connecting to LiveKit "
+                f"room={room_name} url={livekit_url}"
+            )
+            logger.info(
+                "Agent connecting to LiveKit room=%s url=%s token_identity=hint",
+                room_name, livekit_url,
+            )
+            await room.connect(livekit_url, token)
+
+            print(
+                f"[AGENT] ✅ Connected! "
+                f"Local identity: {room.local_participant.identity} "
+                f"Room: {room.name} "
+                f"SID: {getattr(room, 'sid', 'N/A')}"
+            )
+            logger.info(
+                "Agent connected. local_identity=%s room=%s sid=%s",
+                room.local_participant.identity,
+                room.name,
+                getattr(room, "sid", "N/A"),
+            )
+
+            # ── Diagnostic: log full room state ──
+            await self._log_room_state(room, label="after connect")
+
+            # Publish welcome audio
+            await self._publish_wav_audio(
+                room, welcome_audio, track_name="agent-welcome"
+            )
+            logger.info("Welcome message published")
+
+            # ── Safety net: scan for participants that joined during
+            #    welcome playback (our handlers were registered before
+            #    connect, so track_subscribed should fire, but check
+            #    anyway in case of edge cases with racing tracks) ──
+            await self._check_existing_participants(room)
+
+            # ── Periodic participant polling for diagnostics ──
+            #    Logs remote participant identities + tracks every second
+            #    for the first 30 seconds to capture timing.
+            async def _poll_participants():
+                for i in range(30):
+                    await asyncio.sleep(1.0)
+                    try:
+                        remote = list(room.remote_participants.values())
+                        identities = [p.identity for p in remote]
+                        track_info = []
+                        for p in remote:
+                            pubs = (
+                                p.track_publications.values()
+                                if hasattr(p, "track_publications")
+                                else []
+                            )
+                            for pub in pubs:
+                                track_info.append(
+                                    f"{p.identity}/"
+                                    f"{getattr(pub, 'name', '?')}/"
+                                    f"{getattr(pub, 'kind', '?')}/"
+                                    f"subscribed={getattr(pub, 'subscribed', '?')}"
+                                )
+                        status = (
+                            f"remotes={identities or 'NONE'} "
+                            f"tracks={track_info or 'NONE'}"
+                        )
+                        print(f"[AGENT POLL {i+1:2d}s] {status}")
+                        logger.info(
+                            "Room poll %d/30s: participants=%s tracks=%s",
+                            i + 1, identities, track_info,
+                        )
+                    except Exception as e:
+                        logger.warning("Poll error: %s", e)
+                print("[AGENT POLL] Polling complete (30s window finished)")
+
+            asyncio.ensure_future(_poll_participants())
+
+            logger.info("Agent ready — waiting for audio tracks")
             await disconnect_future  # block until server/client disconnects us
 
         except ImportError as e:
             logger.warning("LiveKit SDK not available, running in REST mode: %s", e)
         except Exception as e:
-            logger.error("Agent LiveKit connection failed: %s", e)
+            logger.error("Agent LiveKit connection failed: %s", e, exc_info=True)
 
     async def _handle_audio_track(self, track, room):
         """Receive user audio, segment with VAD, process each utterance."""

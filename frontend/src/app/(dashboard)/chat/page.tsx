@@ -3,8 +3,10 @@
 import { useEffect } from "react";
 import { ConversationSidebar } from "@/components/chat/conversation-sidebar";
 import { ChatWindow } from "@/components/chat/chat-window";
+import { VoicePanel } from "@/components/voice/VoicePanel";
 import { useChatStore } from "@/stores/chat-store";
 import { useConversations, useCreateConversation } from "@/hooks/use-conversations";
+import { useVoiceSession } from "@/hooks/useVoiceSession";
 import { EmptyState } from "@/components/shared/empty-state";
 import { Bot, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -14,6 +16,21 @@ export default function ChatPage() {
   const conversations = useChatStore((s) => s.conversations);
   const { isLoading } = useConversations();
   const createMutation = useCreateConversation();
+
+  // ── Voice (additive — does not modify text chat) ──
+  const {
+    state: voiceState,
+    error: voiceError,
+    session: voiceSession,
+    isMuted,
+    isSupported: voiceSupported,
+    transcripts: voiceTranscripts,
+    sttWarning: voiceSttWarning,
+    startVoice,
+    endVoice,
+    toggleMute,
+    reconnect,
+  } = useVoiceSession();
 
   useEffect(() => {
     if (!activeConversationId && conversations.length > 0) {
@@ -34,6 +51,21 @@ export default function ChatPage() {
 
       {/* Main chat area */}
       <div className="flex-1 flex flex-col min-w-0 min-h-0">
+        {/* Voice panel — additive, above chat */}
+        <VoicePanel
+          state={voiceState}
+          error={voiceError}
+          session={voiceSession}
+          isMuted={isMuted}
+          isSupported={voiceSupported}
+          transcripts={voiceTranscripts}
+          sttWarning={voiceSttWarning}
+          onStartVoice={startVoice}
+          onEndVoice={endVoice}
+          onToggleMute={toggleMute}
+          onRetry={reconnect}
+        />
+
         {activeConversationId ? (
           <ChatWindow conversationId={activeConversationId} />
         ) : (

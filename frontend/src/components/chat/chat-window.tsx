@@ -6,8 +6,6 @@ import { ChatInput } from "./chat-input";
 import { EmptyState } from "@/components/shared/empty-state";
 import { useMessages } from "@/hooks/use-conversations";
 import { useChat } from "@/hooks/use-chat";
-import { useVoice } from "@/hooks/use-voice";
-import { useChatStore } from "@/stores/chat-store";
 import { MessageSquare, Loader2 } from "lucide-react";
 
 interface ChatWindowProps {
@@ -27,27 +25,10 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
     sendMessage,
   } = useChat(conversationId, initialMessages || []);
 
-  const {
-    isRecording,
-    startRecording,
-    stopRecording,
-    connectLiveKit,
-    disconnectLiveKit,
-    isLiveKitConnected,
-    playAudio,
-  } = useVoice();
-
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
-
-  // Sync messages from server when they load
-  useEffect(() => {
-    if (initialMessages && initialMessages.length > 0) {
-      // useChat starts with initialMessages in the existingMessages param
-    }
-  }, [initialMessages]);
 
   if (isMessagesLoading) {
     return (
@@ -74,21 +55,17 @@ export function ChatWindow({ conversationId }: ChatWindowProps) {
             <ChatMessageBubble
               key={msg.id}
               message={msg}
-              onPlayAudio={playAudio}
             />
           ))
         )}
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Input area */}
+      {/* Input area — text only. Voice is handled by VoicePanel in the parent. */}
       <ChatInput
         onSend={(text) => sendMessage(conversationId, text)}
         isLoading={isSending}
         disabled={!conversationId}
-        onStartVoice={() => connectLiveKit(conversationId)}
-        onStopVoice={disconnectLiveKit}
-        isRecording={isRecording || isLiveKitConnected}
       />
     </div>
   );

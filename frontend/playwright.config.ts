@@ -1,19 +1,34 @@
 import { defineConfig, devices } from "@playwright/test";
 
 export default defineConfig({
-  testDir: "./e2e",
-  fullyParallel: true,
+  testDir: "./tests",
+  timeout: 120_000,
+  expect: { timeout: 15_000 },
+  fullyParallel: false,
   retries: 0,
-  workers: 1,
-  reporter: "html",
+  reporter: "list",
   use: {
-    baseURL: process.env.BASE_URL || "http://localhost:3000",
+    baseURL: "http://localhost:3000",
+    headless: false,
+    viewport: { width: 1280, height: 900 },
+    actionTimeout: 10_000,
+    permissions: ["microphone"],
     trace: "on-first-retry",
-    screenshot: "only-on-failure",
+    video: "off",
   },
   projects: [
-    { name: "chromium", use: { ...devices["Desktop Chrome"] } },
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: {
+          args: [
+            "--use-fake-ui-for-media-stream",
+            "--use-fake-device-for-media-stream",
+            "--no-sandbox",
+          ],
+        },
+      },
+    },
   ],
-  timeout: 60000,
-  expect: { timeout: 10000 },
 });
