@@ -197,6 +197,7 @@ export function createLiveKitVoiceClient(
     switch (parsed.type) {
       case "user_interim_transcript":
       case "user_final_transcript":
+      case "assistant_interim_transcript":
       case "assistant_text":
       case "stt_error": {
         onLog("TRANSCRIPT", parsed.type, {
@@ -488,15 +489,27 @@ export function createLiveKitVoiceClient(
           const role: "user" | "assistant" = isLocal ? "user" : "assistant";
           for (const seg of segments || []) {
             if (!seg?.text) continue;
+            const text: string = (seg.text as string).trim();
+            if (!text) continue;
+            const segmentId = (seg.id as string) || undefined;
             if (role === "user") {
               onTranscript?.({
                 type: seg.final
                   ? "user_final_transcript"
                   : "user_interim_transcript",
-                text: seg.text,
+                text,
+                segmentId,
               });
             } else {
-              onTranscript?.({ type: "assistant_text", text: seg.text });
+              // Frontend Fix A — Only FINAL assistant segments are appended
+              // to history. Interim/TTS-partial chunks are ephemeral captions.
+              onTranscript?.({
+                type: seg.final
+                  ? "assistant_text"
+                  : "assistant_interim_transcript",
+                text,
+                segmentId,
+              });
             }
           }
         }

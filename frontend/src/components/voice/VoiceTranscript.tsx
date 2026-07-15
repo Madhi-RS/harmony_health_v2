@@ -8,6 +8,13 @@ interface VoiceTranscriptProps {
   state: VoiceUiState;
   /** Non-blocking STT/no-transcript warning to surface. */
   sttWarning?: string | null;
+  /**
+   * FIX 3 — Ephemeral interim (partial) user transcript shown as a live
+   * caption. Rendered below the permanent transcript history with distinct
+   * italic/muted styling so it's visually clear it's not a final message.
+   * Cleared when a final user transcript or assistant text arrives.
+   */
+  liveCaption?: string | null;
   className?: string;
 }
 
@@ -22,16 +29,19 @@ export function VoiceTranscript({
   transcripts,
   state,
   sttWarning,
+  liveCaption,
   className = "",
 }: VoiceTranscriptProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to the newest line.
-  const lastText = transcripts[transcripts.length - 1]?.text;
+  // Auto-scroll to the newest line (permanent history or live caption).
+  // Use a single string key so the dependency array size never changes, avoiding
+  // React's "final argument passed to useEffect changed size between renders" warning.
+  const scrollKey = `t${transcripts.length}:${liveCaption ?? ''}`;
   useEffect(() => {
     const el = scrollRef.current;
     if (el) el.scrollTop = el.scrollHeight;
-  }, [transcripts.length, lastText]);
+  }, [scrollKey]);
 
   const isCallActive =
     state === "listening" ||
@@ -53,6 +63,18 @@ export function VoiceTranscript({
     >
       {showListeningHint && (
         <p className="text-xs text-muted-foreground italic">Listening…</p>
+      )}
+
+      {/* FIX 3 — Ephemeral interim caption; cleared when final arrives. */}
+      {liveCaption && (
+        <div className="flex flex-col">
+          <span className="text-[10px] uppercase tracking-wide text-muted-foreground/50">
+            Hearing…
+          </span>
+          <span className="text-muted-foreground italic animate-pulse">
+            {liveCaption}
+          </span>
+        </div>
       )}
 
       {transcripts.map((t) => (

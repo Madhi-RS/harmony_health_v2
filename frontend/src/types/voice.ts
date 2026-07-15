@@ -64,9 +64,13 @@ export interface VoiceTranscriptItem {
  * NOTE: These do NOT come from POST /api/v1/voice/sessions. That REST call only
  * returns room/token/session. Transcript text arrives later through LiveKit
  * data/transcription events during the active call.
+ *
+ * `segmentId` is the LiveKit segment id (when available) used for stable
+ * unique React keys and upsert-based deduplication (Frontend Fix B).
  */
 export type VoiceDataEvent =
-  | { type: "user_interim_transcript"; text: string; conversation_id?: string }
-  | { type: "user_final_transcript"; text: string; conversation_id?: string }
-  | { type: "assistant_text"; text: string; conversation_id?: string }
+  | { type: "user_interim_transcript"; text: string; conversation_id?: string; segmentId?: string }
+  | { type: "user_final_transcript"; text: string; conversation_id?: string; segmentId?: string }
+  | { type: "assistant_interim_transcript"; text: string; conversation_id?: string; segmentId?: string }
+  | { type: "assistant_text"; text: string; conversation_id?: string; segmentId?: string }
   | { type: "stt_error"; message?: string };

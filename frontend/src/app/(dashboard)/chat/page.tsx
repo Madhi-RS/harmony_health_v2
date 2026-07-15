@@ -26,6 +26,7 @@ export default function ChatPage() {
     isSupported: voiceSupported,
     transcripts: voiceTranscripts,
     sttWarning: voiceSttWarning,
+    liveCaption: voiceLiveCaption,
     startVoice,
     endVoice,
     toggleMute,
@@ -60,6 +61,7 @@ export default function ChatPage() {
           isSupported={voiceSupported}
           transcripts={voiceTranscripts}
           sttWarning={voiceSttWarning}
+          liveCaption={voiceLiveCaption}
           onStartVoice={startVoice}
           onEndVoice={endVoice}
           onToggleMute={toggleMute}

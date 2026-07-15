@@ -17,6 +17,7 @@ interface VoicePanelProps {
   isSupported: boolean;
   transcripts: VoiceTranscriptItem[];
   sttWarning: string | null;
+  liveCaption: string | null;
   onStartVoice: () => void;
   onEndVoice: () => void;
   onToggleMute: () => void;
@@ -42,6 +43,7 @@ export function VoicePanel({
   isSupported,
   transcripts,
   sttWarning,
+  liveCaption,
   onStartVoice,
   onEndVoice,
   onToggleMute,
@@ -107,6 +109,7 @@ export function VoicePanel({
         transcripts={transcripts}
         state={state}
         sttWarning={sttWarning}
+        liveCaption={liveCaption}
       />
 
       {/* Fallback message if voice unavailable but panel shown */}

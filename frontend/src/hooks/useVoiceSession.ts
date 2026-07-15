@@ -47,6 +47,13 @@ interface UseVoiceSessionReturn {
   latestAssistantText: VoiceTranscriptItem | null;
   /** Non-blocking STT/no-transcript warning to surface in the UI. */
   sttWarning: string | null;
+  /**
+   * FIX 3 — Ephemeral interim (partial) transcript shown as a live caption.
+   * Only FINAL transcripts are appended to the permanent `transcripts` history.
+   * This prevents partial-word spam ("Well,", "What are the services you"…)
+   * from appearing as permanent messages in the voice UI.
+   */
+  liveCaption: string | null;
   /** Clear the transcript history. */
   clearTranscripts: () => void;
   /** Start a voice call. Requests mic first, then creates backend session. */
@@ -67,6 +74,7 @@ export function useVoiceSession(): UseVoiceSessionReturn {
   const [session, setSession] = useState<VoiceSession | null>(null);
   const [isMuted, setIsMuted] = useState(false);
   const [transcripts, setTranscripts] = useState<VoiceTranscriptItem[]>([]);
+  const [liveCaption, setLiveCaption] = useState<string | null>(null);
   const [sttWarning, setSttWarning] = useState<string | null>(null);
 
   const lkClientRef = useRef<LiveKitClientInstance | null>(null);
@@ -85,6 +93,7 @@ export function useVoiceSession(): UseVoiceSessionReturn {
 
   const clearTranscripts = useCallback(() => {
     setTranscripts([]);
+    setLiveCaption(null);
     setSttWarning(null);
   }, []);
 
@@ -110,38 +119,52 @@ export function useVoiceSession(): UseVoiceSessionReturn {
       // A user/assistant transcript arrived — clear stale warnings.
       setSttWarning(null);
 
-      const role: "user" | "assistant" =
-        event.type === "assistant_text" ? "assistant" : "user";
-      const isFinal =
-        event.type === "user_final_transcript" ||
-        event.type === "assistant_text";
       const text = event.text ?? "";
       if (!text) return;
 
-      setTranscripts((prev) => {
-        const next = [...prev];
-        // Collapse consecutive non-final entries of the same role into one
-        // "live" line so interim results update in place instead of stacking.
-        const last = next[next.length - 1];
-        if (last && last.role === role && !last.isFinal) {
-          next[next.length - 1] = {
-            ...last,
-            text,
-            isFinal,
-            timestamp: last.timestamp,
-          };
-          return next;
-        }
+      // ── Ephemeral interim captions (Frontend Fix A) ──
+      // Both user AND assistant partials go to the ephemeral live caption.
+      // Only FINAL segments are appended to the permanent transcript history.
+      if (
+        event.type === "user_interim_transcript" ||
+        event.type === "assistant_interim_transcript"
+      ) {
+        setLiveCaption(text);
+        return;
+      }
 
-        transcriptSeqRef.current += 1;
-        next.push({
-          id: `t-${transcriptSeqRef.current}`,
-          role,
-          text,
-          isFinal,
-          timestamp: transcriptSeqRef.current,
-        });
-        return next;
+      // A final transcript arrived — clear the interim caption.
+      setLiveCaption(null);
+
+      // ── Stable key + upsert (Frontend Fix B) ──
+      // Use the LiveKit segment id when available for deterministic keys,
+      // avoiding duplicate React key warnings from overlapping/re-emitted
+      // events. Fall back to a composite key: role + text length
+      // + monotonic counter (guaranteed unique in the fallback case).
+      const role: "user" | "assistant" =
+        event.type === "assistant_text" ? "assistant" : "user";
+
+      const id = event.segmentId
+        ? `seg:${event.segmentId}`
+        : `t-${transcriptSeqRef.current++}`;
+
+      const timestamp = transcriptSeqRef.current;
+
+      setTranscripts((prev) => {
+        // Upsert: if this segment ID already exists, update the text (the
+        // final version replaces any earlier entry for the same segment).
+        const idx = prev.findIndex((t) => t.id === id);
+        if (idx !== -1) {
+          const updated = [...prev];
+          updated[idx] = { ...updated[idx], text, timestamp };
+          return updated;
+        }
+        // New entry.
+        const seq = timestamp || ++transcriptSeqRef.current;
+        return [
+          ...prev,
+          { id, role, text, isFinal: true, timestamp: seq },
+        ];
       });
     },
     [clearNoTranscriptTimer]
@@ -214,6 +237,7 @@ export function useVoiceSession(): UseVoiceSessionReturn {
     setError(null);
     setSttWarning(null);
     setTranscripts([]);
+    setLiveCaption(null);
     transcriptSeqRef.current = 0;
 
     try {
@@ -437,6 +461,7 @@ export function useVoiceSession(): UseVoiceSessionReturn {
     latestUserTranscript,
     latestAssistantText,
     sttWarning,
+    liveCaption,
     clearTranscripts,
     startVoice,
     endVoice,
