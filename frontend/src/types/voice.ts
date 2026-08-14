@@ -6,6 +6,7 @@ export type VoiceUiState =
   | "connected"
   | "listening"
   | "assistant_speaking"
+  | "assistant_generating"
   | "reconnecting"
   | "ending"
   | "ended"
@@ -24,6 +25,10 @@ export interface VoiceSessionResponse {
 /** Request body for POST /api/v1/voice/sessions */
 export interface VoiceSessionRequest {
   site_id: string | null;
+  tenant_id: string | null;
+  user_id: string | null;
+  email: string | null;
+  conversation_id: string | null;
   business_type: string;
   agent_name: string;
 }
@@ -73,4 +78,16 @@ export type VoiceDataEvent =
   | { type: "user_final_transcript"; text: string; conversation_id?: string; segmentId?: string }
   | { type: "assistant_interim_transcript"; text: string; conversation_id?: string; segmentId?: string }
   | { type: "assistant_text"; text: string; conversation_id?: string; segmentId?: string }
-  | { type: "stt_error"; message?: string };
+  | { type: "stt_error"; message?: string }
+  | { type: "barge_in"; message?: string };
+
+/**
+ * An audio chunk queued for sequential playback (sentence-level chunking).
+ * Each chunk is an independent HTMLAudioElement attached from a LiveKit track.
+ */
+export interface VoiceAudioChunk {
+  id: string;
+  audioElement: HTMLAudioElement;
+  sentenceIndex: number;
+  isLast: boolean;
+}

@@ -46,7 +46,10 @@ export function VoiceTranscript({
   const isCallActive =
     state === "listening" ||
     state === "assistant_speaking" ||
+    state === "assistant_generating" ||
     state === "connected";
+
+  const isGenerating = state === "assistant_generating";
 
   // Nothing to show yet — hint that we're listening while the call is active.
   const showListeningHint = isCallActive && transcripts.length === 0;
@@ -63,6 +66,13 @@ export function VoiceTranscript({
     >
       {showListeningHint && (
         <p className="text-xs text-muted-foreground italic">Listening…</p>
+      )}
+
+      {/* Assistant is composing between sentence chunks — show a subtle indicator. */}
+      {isGenerating && !liveCaption && (
+        <p className="text-xs text-muted-foreground/60 italic">
+          Composing response…
+        </p>
       )}
 
       {/* FIX 3 — Ephemeral interim caption; cleared when final arrives. */}

@@ -62,7 +62,7 @@ export default function ChatPage() {
           transcripts={voiceTranscripts}
           sttWarning={voiceSttWarning}
           liveCaption={voiceLiveCaption}
-          onStartVoice={startVoice}
+          onStartVoice={() => startVoice(activeConversationId ?? undefined)}
           onEndVoice={endVoice}
           onToggleMute={toggleMute}
           onRetry={reconnect}

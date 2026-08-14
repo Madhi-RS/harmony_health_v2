@@ -31,6 +31,20 @@ export const VOICE_CONFIG = {
   defaultAgentName: "Alex",
 } as const;
 
+/** Tunable voice-pipeline timing constants. Single source of truth. */
+export const VOICE_TIMING = {
+  /** Minimum sustained local speech before an interruption is honored. */
+  bargeInMinSpeechMs: 400,
+  /** Ignore likely speaker echo immediately after the greeting. */
+  bargeInCooldownMs: 500,
+  /** Optional gapless hand-off look-ahead. Start conservatively. */
+  chunkLookaheadMs: 120,
+  /** Delay before handing the floor back to the user. */
+  listeningDebounceMs: 300,
+  /** Missing-next-chunk tolerance; validate before changing. */
+  generationCompleteMs: 800,
+} as const;
+
 /** Return the complete voice base URL: http://localhost:8000/api/v1/voice */
 export function getVoiceBaseUrl(): string {
   return `${VOICE_CONFIG.aiSalesLayerBaseUrl}${VOICE_CONFIG.apiPrefix}/voice`;
@@ -60,21 +74,71 @@ export function getSiteId(): string {
   return fromToken || VOICE_CONFIG.defaultSiteId;
 }
 
-/** Best-effort decode of the `siteId` claim from a JWT payload. */
-function decodeSiteIdFromJwt(token: string): string | null {
+// ── JWT payload decoding ──
+
+/** Reusable base64url JWT payload decoder. Returns parsed claims or null. */
+function decodeJwtPayload(token: string): Record<string, unknown> | null {
   if (!token) return null;
   const parts = token.split(".");
   if (parts.length < 2) return null;
   try {
-    // Base64url → base64, then decode.
     const base64 = parts[1].replace(/-/g, "+").replace(/_/g, "/");
     const json =
       typeof atob !== "undefined"
         ? atob(base64)
         : Buffer.from(base64, "base64").toString("binary");
-    const payload = JSON.parse(json);
-    return payload?.siteId || payload?.site_id || null;
+    return JSON.parse(json);
   } catch {
     return null;
   }
+}
+
+/** Extract `siteId` / `site_id` from the JWT. */
+function decodeSiteIdFromJwt(token: string): string | null {
+  const p = decodeJwtPayload(token);
+  if (!p) return null;
+  return (p.siteId as string) || (p.site_id as string) || null;
+}
+
+/** Extract `tenantId` / `tenant_id` from the JWT. */
+export function decodeTenantIdFromJwt(token: string): string | null {
+  const p = decodeJwtPayload(token);
+  if (!p) return null;
+  return (p.tenantId as string) || (p.tenant_id as string) || null;
+}
+
+/** Extract `userId` / `user_id` from the JWT. */
+export function decodeUserIdFromJwt(token: string): string | null {
+  const p = decodeJwtPayload(token);
+  if (!p) return null;
+  return (p.userId as string) || (p.user_id as string) || null;
+}
+
+/** Extract `email` from the JWT. */
+export function decodeEmailFromJwt(token: string): string | null {
+  const p = decodeJwtPayload(token);
+  if (!p) return null;
+  return (p.email as string) || null;
+}
+
+/**
+ * Return all participant metadata required by the voice agent's
+ * `parse_voice_metadata()` for tenant context resolution.
+ *
+ * Fields: tenant_id, user_id, email, site_id.
+ * Falls back to config defaults where the JWT doesn't carry a claim.
+ */
+export function getVoiceSessionMetadata(): {
+  tenant_id: string | null;
+  user_id: string | null;
+  email: string | null;
+  site_id: string | null;
+} {
+  const token = getAccessToken();
+  return {
+    tenant_id: decodeTenantIdFromJwt(token) || null,
+    user_id: decodeUserIdFromJwt(token) || null,
+    email: decodeEmailFromJwt(token) || null,
+    site_id: decodeSiteIdFromJwt(token) || VOICE_CONFIG.defaultSiteId,
+  };
 }

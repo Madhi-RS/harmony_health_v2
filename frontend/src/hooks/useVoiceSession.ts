@@ -56,8 +56,10 @@ interface UseVoiceSessionReturn {
   liveCaption: string | null;
   /** Clear the transcript history. */
   clearTranscripts: () => void;
-  /** Start a voice call. Requests mic first, then creates backend session. */
-  startVoice: () => Promise<void>;
+  /** Start a voice call. Requests mic first, then creates backend session.
+   *  Optionally accepts a conversation_id to link the voice session to an
+   *  existing conversation. */
+  startVoice: (conversationId?: string) => Promise<void>;
   /** End a voice call. Disconnects LiveKit and calls DELETE session. */
   endVoice: () => Promise<void>;
   /** Toggle microphone mute. */
@@ -113,6 +115,14 @@ export function useVoiceSession(): UseVoiceSessionReturn {
         setSttWarning(
           event.message || "Speech recognition is unavailable right now."
         );
+        return;
+      }
+
+      // Barge-in event: user interrupted the assistant. Clear live caption
+      // and log — the LiveKit client already stopped all audio playback.
+      if (event.type === "barge_in") {
+        setLiveCaption(null);
+        log("BARGE_IN", "User interrupted — clearing state");
         return;
       }
 
@@ -192,6 +202,12 @@ export function useVoiceSession(): UseVoiceSessionReturn {
         onStateChange: (newState) => {
           console.info("[VOICE_STATE] ui_state ->", newState);
           setState(newState);
+          // Don't arm the no-transcript timer during assistant_generating
+          // — the agent is still composing, not waiting for user input.
+          if (newState === "assistant_generating") {
+            clearNoTranscriptTimer();
+            return;
+          }
           if (newState === "listening") {
             // P3: arm a no-transcript watchdog. If the user speaks but no
             // transcript arrives (backend STT down), surface a warning.
@@ -220,7 +236,7 @@ export function useVoiceSession(): UseVoiceSessionReturn {
 
   // ── startVoice ──
 
-  const startVoice = useCallback(async () => {
+  const startVoice = useCallback(async (conversationId?: string) => {
     if (isStartingRef.current) {
       log("VOICE", "Already starting — skip");
       return;
@@ -270,7 +286,9 @@ export function useVoiceSession(): UseVoiceSessionReturn {
       // Step 1 — Create backend voice session
       setState("creating_session");
       log("VOICE", "Creating session");
-      const response: VoiceSessionResponse = await voiceApi.createSession();
+      const response: VoiceSessionResponse = await voiceApi.createSession({
+        conversation_id: conversationId ?? null,
+      });
 
       // Validate response
       if (!response.livekit_url || !response.livekit_token) {

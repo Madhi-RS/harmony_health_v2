@@ -8,7 +8,7 @@
  * 4. Centralize URL construction
  */
 
-import { getVoiceBaseUrl, getVoiceHeaders, getSiteId } from "@/config/voiceConfig";
+import { getVoiceBaseUrl, getVoiceHeaders, getVoiceSessionMetadata } from "@/config/voiceConfig";
 import type {
   VoiceSessionResponse,
   VoiceSessionRequest,
@@ -54,10 +54,16 @@ export const voiceApi = {
   async createSession(
     params: Partial<VoiceSessionRequest> = {}
   ): Promise<VoiceSessionResponse> {
+    const metadata = getVoiceSessionMetadata();
+
     const body: VoiceSessionRequest = {
-      // Pass the resolved site id explicitly (from JWT, else config default) so
-      // the voice worker's RAG retrieval has the right tenant/site context.
-      site_id: params.site_id ?? getSiteId(),
+      // Tenant / user context decoded from the active JWT so the voice agent's
+      // `parse_voice_metadata()` has everything it needs for RAG + auth.
+      site_id: params.site_id ?? metadata.site_id,
+      tenant_id: params.tenant_id ?? metadata.tenant_id,
+      user_id: params.user_id ?? metadata.user_id,
+      email: params.email ?? metadata.email,
+      conversation_id: params.conversation_id ?? null,
       business_type: params.business_type ?? "default",
       agent_name: params.agent_name ?? "Alex",
     };

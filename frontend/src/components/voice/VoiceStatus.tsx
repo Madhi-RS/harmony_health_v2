@@ -24,6 +24,8 @@ export function voiceStateLabel(state: VoiceUiState): string {
       return "Listening...";
     case "assistant_speaking":
       return "Assistant speaking...";
+    case "assistant_generating":
+      return "Generating response…";
     case "reconnecting":
       return "Reconnecting...";
     case "ending":
@@ -48,6 +50,7 @@ export function VoiceStatus({
   const isActive =
     state === "listening" ||
     state === "assistant_speaking" ||
+    state === "assistant_generating" ||
     state === "connected";
 
   return (
